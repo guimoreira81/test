@@ -1,3 +1,3 @@
 # test
 
-link: https://guimoreira.github.io/test
+link: https://guimoreira.github.io/teste
