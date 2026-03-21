@@ -3,430 +3,577 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Labirinto 3D ASCII</title>
+  <title>Mundo 3D Procedural com DIVs</title>
   <style>
     * {
       box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
 
     html, body {
-      margin: 0;
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #000;
-      font-family: Consolas, "Courier New", monospace;
+      background: #87c9ff;
+      font-family: Arial, sans-serif;
+      user-select: none;
     }
 
     #game {
       position: fixed;
       inset: 0;
-      display: flex;
-      align-items: stretch;
-      justify-content: stretch;
+      overflow: hidden;
       background:
-        radial-gradient(circle at center, rgba(0, 30, 60, 0.25), rgba(0, 0, 0, 0.95));
+        linear-gradient(to bottom, #87c9ff 0%, #b9e3ff 45%, #d6f0ff 46%, #b5d48c 100%);
+      cursor: crosshair;
     }
 
-    #screen {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      white-space: pre;
-      line-height: 1;
-      letter-spacing: 0;
-      user-select: none;
+    #world {
+      position: absolute;
+      inset: 0;
       overflow: hidden;
-      padding: 0;
-      font-size: 14px;
-      background:
-        linear-gradient(to bottom, #0a1020 0%, #111827 40%, #0f0f0f 40%, #050505 100%);
+      pointer-events: none;
+    }
+
+    .poly {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform-origin: 0 0;
+      pointer-events: none;
+      will-change: transform, clip-path, opacity;
     }
 
     #hud {
       position: fixed;
-      top: 12px;
-      left: 12px;
-      z-index: 10;
-      color: #d8f6ff;
-      background: rgba(0, 0, 0, 0.45);
-      border: 1px solid rgba(120, 220, 255, 0.25);
-      padding: 10px 12px;
-      border-radius: 10px;
+      left: 16px;
+      top: 16px;
+      z-index: 50;
+      color: white;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 12px 14px;
+      border-radius: 12px;
+      backdrop-filter: blur(6px);
+      line-height: 1.5;
       font-size: 14px;
-      line-height: 1.4;
-      backdrop-filter: blur(4px);
-      box-shadow: 0 0 18px rgba(0, 200, 255, 0.12);
     }
 
-    #message {
+    #centerDot {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      width: 8px;
+      height: 8px;
+      margin-left: -4px;
+      margin-top: -4px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.95);
+      box-shadow: 0 0 10px rgba(255,255,255,0.7);
+      z-index: 40;
+      pointer-events: none;
+    }
+
+    #overlay {
       position: fixed;
       inset: 0;
-      display: none;
+      z-index: 60;
+      display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 20;
-      background: rgba(0, 0, 0, 0.72);
-      color: #fff;
+      background: rgba(8, 15, 30, 0.35);
+      color: white;
       text-align: center;
       padding: 24px;
     }
 
-    #message .box {
-      background: rgba(10, 15, 30, 0.88);
-      border: 1px solid rgba(120, 220, 255, 0.25);
-      border-radius: 16px;
+    #overlay .box {
+      max-width: 720px;
       padding: 28px;
-      max-width: 680px;
-      box-shadow: 0 0 30px rgba(0, 200, 255, 0.15);
+      border-radius: 18px;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(255,255,255,0.15);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 18px 50px rgba(0,0,0,0.35);
     }
 
-    #message h1 {
-      margin-top: 0;
-      color: #7cf2ff;
+    #overlay h1 {
+      margin-bottom: 12px;
       font-size: 2rem;
     }
 
-    #message p {
-      color: #d8f6ff;
+    #overlay p {
+      margin: 8px 0;
+      color: #eaf6ff;
+    }
+
+    #overlay button {
+      margin-top: 16px;
+      border: none;
+      background: #ffffff;
+      color: #111;
+      padding: 12px 18px;
+      border-radius: 10px;
+      font-weight: bold;
+      cursor: pointer;
       font-size: 1rem;
     }
 
-    #crosshair {
-      position: fixed;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      z-index: 9;
-      color: rgba(255,255,255,0.55);
-      font-size: 20px;
-      pointer-events: none;
-      text-shadow: 0 0 8px rgba(255,255,255,0.2);
-    }
-
-    .hint {
-      color: #82ffaa;
-    }
-
-    .accent {
-      color: #ffd166;
+    #overlay button:hover {
+      background: #e8f3ff;
     }
   </style>
 </head>
 <body>
   <div id="game">
-    <pre id="screen"></pre>
-  </div>
+    <div id="world"></div>
+    <div id="centerDot"></div>
 
-  <div id="crosshair">+</div>
+    <div id="hud">
+      <div><strong>Mundo 3D Procedural</strong></div>
+      <div>WASD = mover</div>
+      <div>Space = pular</div>
+      <div>Mouse = olhar</div>
+      <div id="coords">Pos: 0, 0, 0</div>
+      <div id="stats">Polígonos: 0</div>
+    </div>
 
-  <div id="hud">
-    <div><strong>Labirinto 3D ASCII</strong></div>
-    <div>W/S = andar | A/D = girar | Shift = correr | R = reiniciar</div>
-    <div id="status">Encontre a saída <span class="accent">E</span></div>
-  </div>
-
-  <div id="message">
-    <div class="box">
-      <h1>Você escapou do labirinto!</h1>
-      <p>Pressione <span class="hint">R</span> para jogar novamente.</p>
+    <div id="overlay">
+      <div class="box">
+        <h1>Exploração 3D com DIVs</h1>
+        <p>Clique para capturar o mouse e começar.</p>
+        <p>Use <strong>W, A, S, D</strong> para andar, <strong>Space</strong> para pular e o <strong>mouse</strong> para mover a câmera.</p>
+        <p>O mundo é gerado proceduralmente e continua em todas as direções.</p>
+        <button id="startBtn">Entrar no Mundo</button>
+      </div>
     </div>
   </div>
 
   <script>
-    const screen = document.getElementById("screen");
-    const statusText = document.getElementById("status");
-    const message = document.getElementById("message");
+    const game = document.getElementById("game");
+    const world = document.getElementById("world");
+    const overlay = document.getElementById("overlay");
+    const startBtn = document.getElementById("startBtn");
+    const coordsEl = document.getElementById("coords");
+    const statsEl = document.getElementById("stats");
 
-    const map = [
-      "########################",
-      "#S     #       #      E#",
-      "# ### ### ##### # ######",
-      "#   #     #   # #      #",
-      "### ##### # # # ###### #",
-      "#   #   #   # #      # #",
-      "# ### # ##### ###### # #",
-      "# #   #     #      # # #",
-      "# # ####### ###### # # #",
-      "# #       #      # #   #",
-      "# ####### ###### # ### #",
-      "#       #      # #     #",
-      "####### ######## #######",
-      "#                    ###",
-      "########################"
-    ];
-
-    const MAP_W = map[0].length;
-    const MAP_H = map.length;
-
-    let player = {
-      x: 1.5,
-      y: 1.5,
-      angle: 0
-    };
-
-    // Encontrar spawn S
-    for (let y = 0; y < MAP_H; y++) {
-      for (let x = 0; x < MAP_W; x++) {
-        if (map[y][x] === "S") {
-          player.x = x + 0.5;
-          player.y = y + 0.5;
-        }
-      }
-    }
+    const W = () => window.innerWidth;
+    const H = () => window.innerHeight;
+    const CX = () => W() / 2;
+    const CY = () => H() / 2;
 
     const keys = {};
-    let gameWon = false;
-    let lastTime = performance.now();
+    const polygons = [];
 
-    const FOV = Math.PI / 3;      // 60 graus
-    const MAX_DEPTH = 20;
-    const MOVE_SPEED = 2.8;
-    const RUN_MULT = 1.85;
-    const TURN_SPEED = 2.4;
+    const player = {
+      x: 0,
+      y: 5,
+      z: 0,
+      vy: 0,
+      yaw: 0,
+      pitch: -0.15,
+      onGround: false
+    };
 
-    const wallChars = ["█", "▓", "▒", "░", "#", "x", ".", "."];
-    const floorChars = [".", ",", "-", "~"];
-    const skyChars = [" ", "·", " "];
+    const settings = {
+      gravity: 24,
+      jumpForce: 9,
+      moveSpeed: 10,
+      mouseSensitivity: 0.0022,
+      fov: 900,
+      renderRadius: 12,
+      tileSize: 2,
+      maxPitch: 1.25
+    };
 
-    function isWall(x, y) {
-      if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) return true;
-      return map[Math.floor(y)][Math.floor(x)] === "#";
+    function clamp(v, min, max) {
+      return Math.max(min, Math.min(max, v));
     }
 
-    function getCell(x, y) {
-      if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) return "#";
-      return map[Math.floor(y)][Math.floor(x)];
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
     }
 
-    function resetGame() {
-      for (let y = 0; y < MAP_H; y++) {
-        for (let x = 0; x < MAP_W; x++) {
-          if (map[y][x] === "S") {
-            player.x = x + 0.5;
-            player.y = y + 0.5;
-            player.angle = 0;
-          }
-        }
+    function fract(x) {
+      return x - Math.floor(x);
+    }
+
+    function hash2(x, z) {
+      const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453123;
+      return fract(s);
+    }
+
+    function smoothNoise(x, z) {
+      const ix = Math.floor(x);
+      const iz = Math.floor(z);
+      const fx = x - ix;
+      const fz = z - iz;
+
+      const a = hash2(ix, iz);
+      const b = hash2(ix + 1, iz);
+      const c = hash2(ix, iz + 1);
+      const d = hash2(ix + 1, iz + 1);
+
+      const ux = fx * fx * (3 - 2 * fx);
+      const uz = fz * fz * (3 - 2 * fz);
+
+      return lerp(
+        lerp(a, b, ux),
+        lerp(c, d, ux),
+        uz
+      );
+    }
+
+    function fbm(x, z) {
+      let value = 0;
+      let amp = 1;
+      let freq = 1;
+      let norm = 0;
+
+      for (let i = 0; i < 5; i++) {
+        value += smoothNoise(x * freq, z * freq) * amp;
+        norm += amp;
+        amp *= 0.5;
+        freq *= 2;
       }
-      gameWon = false;
-      message.style.display = "none";
-      statusText.innerHTML = 'Encontre a saída <span class="accent">E</span>';
+
+      return value / norm;
     }
 
-    function castRay(rayAngle) {
-      const stepSize = 0.02;
-      let distance = 0;
-      let hit = false;
-      let hitType = "#";
-      let edgeShade = 1;
+    function getHeight(x, z) {
+      const n1 = fbm(x * 0.035, z * 0.035);
+      const n2 = fbm(x * 0.012, z * 0.012);
+      const hills = n1 * 10;
+      const continents = n2 * 18;
+      const ripple = Math.sin(x * 0.08) * Math.cos(z * 0.08) * 1.2;
+      return continents + hills + ripple;
+    }
 
-      const eyeX = Math.cos(rayAngle);
-      const eyeY = Math.sin(rayAngle);
+    function getGroundColor(h) {
+      if (h < 2) return "rgb(194, 182, 128)";
+      if (h < 7) return "rgb(82, 145, 78)";
+      if (h < 13) return "rgb(63, 120, 68)";
+      if (h < 19) return "rgb(101, 106, 89)";
+      return "rgb(220, 225, 230)";
+    }
 
-      while (!hit && distance < MAX_DEPTH) {
-        distance += stepSize;
-        const testX = player.x + eyeX * distance;
-        const testY = player.y + eyeY * distance;
+    function shadeColor(rgb, amount) {
+      const match = rgb.match(/\d+/g).map(Number);
+      const r = clamp(Math.floor(match[0] + amount), 0, 255);
+      const g = clamp(Math.floor(match[1] + amount), 0, 255);
+      const b = clamp(Math.floor(match[2] + amount), 0, 255);
+      return `rgb(${r}, ${g}, ${b})`;
+    }
 
-        const cell = getCell(testX, testY);
-        if (cell === "#" || cell === "E") {
-          hit = true;
-          hitType = cell;
+    function ensurePolygonPool(count) {
+      while (polygons.length < count) {
+        const div = document.createElement("div");
+        div.className = "poly";
+        world.appendChild(div);
+        polygons.push(div);
+      }
+    }
 
-          // Detecção simples de “borda”
-          const blockMidX = Math.floor(testX) + 0.5;
-          const blockMidY = Math.floor(testY) + 0.5;
-          const angleToBlock = Math.atan2(testY - blockMidY, testX - blockMidX);
-          const cornerFactor = Math.min(
-            Math.abs(Math.cos(angleToBlock)),
-            Math.abs(Math.sin(angleToBlock))
-          );
-          edgeShade = cornerFactor < 0.18 ? 0.7 : 1;
-        }
+    function projectPoint(wx, wy, wz) {
+      let x = wx - player.x;
+      let y = wy - player.y;
+      let z = wz - player.z;
+
+      const cosYaw = Math.cos(-player.yaw);
+      const sinYaw = Math.sin(-player.yaw);
+      const x1 = x * cosYaw - z * sinYaw;
+      const z1 = x * sinYaw + z * cosYaw;
+
+      const cosPitch = Math.cos(-player.pitch);
+      const sinPitch = Math.sin(-player.pitch);
+      const y2 = y * cosPitch - z1 * sinPitch;
+      const z2 = y * sinPitch + z1 * cosPitch;
+
+      if (z2 <= 0.1) return null;
+
+      const scale = settings.fov / z2;
+      const sx = CX() + x1 * scale;
+      const sy = CY() - y2 * scale;
+
+      return { x: sx, y: sy, z: z2, scale };
+    }
+
+    function drawTriangle(el, p1, p2, p3, color, zIndex, opacity = 1) {
+      const minX = Math.min(p1.x, p2.x, p3.x);
+      const minY = Math.min(p1.y, p2.y, p3.y);
+      const maxX = Math.max(p1.x, p2.x, p3.x);
+      const maxY = Math.max(p1.y, p2.y, p3.y);
+
+      const width = maxX - minX;
+      const height = maxY - minY;
+
+      if (width < 1 || height < 1) {
+        el.style.display = "none";
+        return;
       }
 
-      return { distance, hitType, edgeShade };
+      const ax = ((p1.x - minX) / width) * 100;
+      const ay = ((p1.y - minY) / height) * 100;
+      const bx = ((p2.x - minX) / width) * 100;
+      const by = ((p2.y - minY) / height) * 100;
+      const cx = ((p3.x - minX) / width) * 100;
+      const cy = ((p3.y - minY) / height) * 100;
+
+      el.style.display = "block";
+      el.style.left = `${minX}px`;
+      el.style.top = `${minY}px`;
+      el.style.width = `${width}px`;
+      el.style.height = `${height}px`;
+      el.style.background = color;
+      el.style.opacity = opacity;
+      el.style.zIndex = zIndex;
+      el.style.clipPath = `polygon(${ax}% ${ay}%, ${bx}% ${by}%, ${cx}% ${cy}%)`;
     }
 
-    function colorize(text, color) {
-      return `<span style="color:${color}">${text}</span>`;
+    function triangleArea2(a, b, c) {
+      return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
     }
 
     function render() {
-      const width = Math.max(80, Math.floor(window.innerWidth / 9));
-      const height = Math.max(32, Math.floor(window.innerHeight / 16));
+      const tile = settings.tileSize;
+      const radius = settings.renderRadius;
 
-      let output = "";
+      const baseX = Math.floor(player.x / tile);
+      const baseZ = Math.floor(player.z / tile);
 
-      for (let y = 0; y < height; y++) {
-        let row = "";
+      const tris = [];
 
-        for (let x = 0; x < width; x++) {
-          const rayAngle = (player.angle - FOV / 2) + (x / width) * FOV;
-          const ray = castRay(rayAngle);
+      for (let gz = baseZ - radius; gz <= baseZ + radius; gz++) {
+        for (let gx = baseX - radius; gx <= baseX + radius; gx++) {
+          const x0 = gx * tile;
+          const z0 = gz * tile;
+          const x1 = x0 + tile;
+          const z1 = z0 + tile;
 
-          let dist = ray.distance * Math.cos(rayAngle - player.angle);
-          if (dist < 0.0001) dist = 0.0001;
+          const y00 = getHeight(x0, z0);
+          const y10 = getHeight(x1, z0);
+          const y11 = getHeight(x1, z1);
+          const y01 = getHeight(x0, z1);
 
-          const wallHeight = Math.floor(height / dist);
-          const ceiling = Math.floor((height / 2) - wallHeight / 2);
-          const floor = Math.floor((height / 2) + wallHeight / 2);
+          const centerX = (x0 + x1) * 0.5;
+          const centerZ = (z0 + z1) * 0.5;
 
-          if (y < ceiling) {
-            const skyDepth = y / Math.max(1, ceiling);
-            const char = skyChars[Math.min(skyChars.length - 1, Math.floor(skyDepth * skyChars.length))];
-            row += colorize(char, "#6fb7ff");
-          } else if (y > floor) {
-            const b = 1 - ((y - height / 2) / (height / 2));
-            let floorChar = " ";
-            let floorColor = "#111";
+          const dx = centerX - player.x;
+          const dz = centerZ - player.z;
+          const distSq = dx * dx + dz * dz;
 
-            if (b < 0.15) {
-              floorChar = " ";
-              floorColor = "#050505";
-            } else if (b < 0.3) {
-              floorChar = floorChars[3];
-              floorColor = "#1f2b1f";
-            } else if (b < 0.5) {
-              floorChar = floorChars[2];
-              floorColor = "#2f3d2f";
-            } else if (b < 0.7) {
-              floorChar = floorChars[1];
-              floorColor = "#455545";
-            } else {
-              floorChar = floorChars[0];
-              floorColor = "#708070";
+          const p00 = projectPoint(x0, y00, z0);
+          const p10 = projectPoint(x1, y10, z0);
+          const p11 = projectPoint(x1, y11, z1);
+          const p01 = projectPoint(x0, y01, z1);
+
+          if (!p00 && !p10 && !p11 && !p01) continue;
+
+          const avgH = (y00 + y10 + y11 + y01) * 0.25;
+          const baseColor = getGroundColor(avgH);
+
+          const slope1 = ((y10 - y00) + (y11 - y00)) * 0.5;
+          const slope2 = ((y11 - y01) + (y11 - y10)) * 0.5;
+
+          const color1 = shadeColor(baseColor, 18 - slope1 * 10);
+          const color2 = shadeColor(baseColor, 8 - slope2 * 10);
+
+          if (p00 && p10 && p11) {
+            if (triangleArea2(p00, p10, p11) < 0) {
+              tris.push({
+                p1: p00,
+                p2: p10,
+                p3: p11,
+                color: color1,
+                depth: distSq + (p00.z + p10.z + p11.z)
+              });
+            }
+          }
+
+          if (p00 && p11 && p01) {
+            if (triangleArea2(p00, p11, p01) < 0) {
+              tris.push({
+                p1: p00,
+                p2: p11,
+                p3: p01,
+                color: color2,
+                depth: distSq + (p00.z + p11.z + p01.z)
+              });
+            }
+          }
+
+          // Árvores procedurais simples
+          const seed = hash2(gx * 17, gz * 31);
+          if (seed > 0.82 && distSq < (radius * tile * 0.88) ** 2) {
+            const tx = centerX + (hash2(gx * 19, gz * 23) - 0.5) * 0.7;
+            const tz = centerZ + (hash2(gx * 13, gz * 29) - 0.5) * 0.7;
+            const th = getHeight(tx, tz);
+
+            const trunkH = 2.2 + hash2(gx * 5, gz * 7) * 1.4;
+            const crownH = trunkH + 2.8 + hash2(gx * 3, gz * 11) * 1.8;
+
+            const trunkW = 0.28;
+            const crownW = 1.35;
+
+            const t1 = projectPoint(tx - trunkW, th, tz);
+            const t2 = projectPoint(tx + trunkW, th, tz);
+            const t3 = projectPoint(tx + trunkW, th + trunkH, tz);
+            const t4 = projectPoint(tx - trunkW, th + trunkH, tz);
+
+            const c1 = projectPoint(tx - crownW, th + trunkH - 0.2, tz);
+            const c2 = projectPoint(tx + crownW, th + trunkH - 0.2, tz);
+            const c3 = projectPoint(tx + crownW * 0.2, th + crownH, tz);
+            const c4 = projectPoint(tx - crownW * 0.2, th + crownH, tz);
+
+            if (t1 && t2 && t3) {
+              tris.push({ p1: t1, p2: t2, p3: t3, color: "rgb(95, 62, 36)", depth: distSq - 1 });
+            }
+            if (t1 && t3 && t4) {
+              tris.push({ p1: t1, p2: t3, p3: t4, color: "rgb(110, 72, 42)", depth: distSq - 1 });
             }
 
-            row += colorize(floorChar, floorColor);
-          } else {
-            const depthRatio = ray.distance / MAX_DEPTH;
-            let idx = Math.min(wallChars.length - 1, Math.floor(depthRatio * wallChars.length));
-            let char = wallChars[idx];
-
-            let color;
-            if (ray.hitType === "E") {
-              color = depthRatio < 0.4 ? "#7CFFB2" : depthRatio < 0.7 ? "#52d98c" : "#2f8f5a";
-              char = depthRatio < 0.45 ? "@" : char;
-            } else {
-              if (depthRatio < 0.15) color = "#b8f1ff";
-              else if (depthRatio < 0.3) color = "#86dfff";
-              else if (depthRatio < 0.45) color = "#57b8ff";
-              else if (depthRatio < 0.65) color = "#347ed1";
-              else if (depthRatio < 0.85) color = "#24508c";
-              else color = "#172a45";
+            if (c1 && c2 && c3) {
+              tris.push({ p1: c1, p2: c2, p3: c3, color: "rgb(49, 118, 54)", depth: distSq - 2 });
             }
-
-            if (ray.edgeShade < 1) {
-              color = ray.hitType === "E" ? "#b8ffd2" : "#d9f7ff";
-              char = "│";
+            if (c1 && c3 && c4) {
+              tris.push({ p1: c1, p2: c3, p3: c4, color: "rgb(60, 140, 67)", depth: distSq - 2 });
             }
-
-            row += colorize(char, color);
           }
         }
-
-        output += row + "\n";
       }
 
-      // Mini mapa
-      output += "\n";
-      output += `<span style="color:#7cf2ff">MAPA</span>\n`;
-      for (let y = 0; y < MAP_H; y++) {
-        let line = "";
-        for (let x = 0; x < MAP_W; x++) {
-          const px = Math.floor(player.x);
-          const py = Math.floor(player.y);
+      tris.sort((a, b) => b.depth - a.depth);
 
-          if (x === px && y === py) {
-            line += `<span style="color:#ffd166">P</span>`;
-          } else {
-            const cell = map[y][x];
-            if (cell === "#") line += `<span style="color:#3f6fa0">#</span>`;
-            else if (cell === "E") line += `<span style="color:#7cffb0">E</span>`;
-            else if (cell === "S") line += `<span style="color:#cda6ff">S</span>`;
-            else line += `<span style="color:#7a8a9a">.</span>`;
-          }
+      ensurePolygonPool(tris.length);
+
+      for (let i = 0; i < polygons.length; i++) {
+        const el = polygons[i];
+        const tri = tris[i];
+
+        if (!tri) {
+          el.style.display = "none";
+          continue;
         }
-        output += line + "\n";
+
+        drawTriangle(
+          el,
+          tri.p1,
+          tri.p2,
+          tri.p3,
+          tri.color,
+          1000 - i,
+          1
+        );
       }
 
-      screen.innerHTML = output;
-    }
-
-    function tryMove(nx, ny) {
-      const radius = 0.18;
-      if (
-        !isWall(nx - radius, ny - radius) &&
-        !isWall(nx + radius, ny - radius) &&
-        !isWall(nx - radius, ny + radius) &&
-        !isWall(nx + radius, ny + radius)
-      ) {
-        player.x = nx;
-        player.y = ny;
-      }
+      coordsEl.textContent =
+        `Pos: ${player.x.toFixed(1)}, ${player.y.toFixed(1)}, ${player.z.toFixed(1)}`;
+      statsEl.textContent = `Polígonos: ${tris.length}`;
     }
 
     function update(dt) {
-      if (gameWon) return;
+      const forwardX = Math.sin(player.yaw);
+      const forwardZ = Math.cos(player.yaw);
+      const rightX = Math.sin(player.yaw + Math.PI / 2);
+      const rightZ = Math.cos(player.yaw + Math.PI / 2);
 
-      const moveSpeed = (keys["Shift"] ? MOVE_SPEED * RUN_MULT : MOVE_SPEED) * dt;
-      const turnSpeed = TURN_SPEED * dt;
-
-      if (keys["a"]) player.angle -= turnSpeed;
-      if (keys["d"]) player.angle += turnSpeed;
-
-      const dirX = Math.cos(player.angle);
-      const dirY = Math.sin(player.angle);
+      let moveX = 0;
+      let moveZ = 0;
 
       if (keys["w"]) {
-        tryMove(player.x + dirX * moveSpeed, player.y + dirY * moveSpeed);
+        moveX += forwardX;
+        moveZ += forwardZ;
       }
-
       if (keys["s"]) {
-        tryMove(player.x - dirX * moveSpeed, player.y - dirY * moveSpeed);
+        moveX -= forwardX;
+        moveZ -= forwardZ;
+      }
+      if (keys["a"]) {
+        moveX -= rightX;
+        moveZ -= rightZ;
+      }
+      if (keys["d"]) {
+        moveX += rightX;
+        moveZ += rightZ;
       }
 
-      if (getCell(player.x, player.y) === "E") {
-        gameWon = true;
-        message.style.display = "flex";
-        statusText.innerHTML = '<span class="hint">Saída encontrada!</span>';
+      const len = Math.hypot(moveX, moveZ);
+      if (len > 0) {
+        moveX /= len;
+        moveZ /= len;
+      }
+
+      player.x += moveX * settings.moveSpeed * dt;
+      player.z += moveZ * settings.moveSpeed * dt;
+
+      const ground = getHeight(player.x, player.z) + 1.7;
+
+      player.vy -= settings.gravity * dt;
+      player.y += player.vy * dt;
+
+      if (player.y <= ground) {
+        player.y = ground;
+        player.vy = 0;
+        player.onGround = true;
+      } else {
+        player.onGround = false;
       }
     }
 
-    function loop(now) {
-      const dt = Math.min(0.05, (now - lastTime) / 1000);
-      lastTime = now;
-
-      update(dt);
-      render();
-      requestAnimationFrame(loop);
-    }
-
-    window.addEventListener("keydown", (e) => {
-      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    document.addEventListener("keydown", (e) => {
+      const key = e.key.toLowerCase();
       keys[key] = true;
 
-      if (key === "r") {
-        resetGame();
-      }
-
-      if (["w", "a", "s", "d", "Shift", "r"].includes(key)) {
+      if (key === " " || e.code === "Space") {
+        if (player.onGround) {
+          player.vy = settings.jumpForce;
+          player.onGround = false;
+        }
         e.preventDefault();
       }
     });
 
-    window.addEventListener("keyup", (e) => {
-      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-      keys[key] = false;
+    document.addEventListener("keyup", (e) => {
+      keys[e.key.toLowerCase()] = false;
     });
 
-    window.addEventListener("resize", render);
+    document.addEventListener("mousemove", (e) => {
+      if (document.pointerLockElement !== game) return;
 
-    resetGame();
+      player.yaw += e.movementX * settings.mouseSensitivity;
+      player.pitch -= e.movementY * settings.mouseSensitivity;
+      player.pitch = clamp(player.pitch, -settings.maxPitch, settings.maxPitch);
+    });
+
+    function lockPointer() {
+      game.requestPointerLock();
+    }
+
+    startBtn.addEventListener("click", lockPointer);
+    game.addEventListener("click", () => {
+      if (document.pointerLockElement !== game) {
+        lockPointer();
+      }
+    });
+
+    document.addEventListener("pointerlockchange", () => {
+      overlay.style.display = document.pointerLockElement === game ? "none" : "flex";
+    });
+
+    let last = performance.now();
+
+    function frame(now) {
+      const dt = Math.min(0.033, (now - last) / 1000);
+      last = now;
+
+      update(dt);
+      render();
+      requestAnimationFrame(frame);
+    }
+
     render();
-    requestAnimationFrame(loop);
+    requestAnimationFrame(frame);
   </script>
 </body>
 </html>
