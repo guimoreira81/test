@@ -3,40 +3,430 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Calculadora 2D</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Labirinto 3D ASCII</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      font-family: Consolas, "Courier New", monospace;
+    }
+
+    #game {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: stretch;
+      justify-content: stretch;
+      background:
+        radial-gradient(circle at center, rgba(0, 30, 60, 0.25), rgba(0, 0, 0, 0.95));
+    }
+
+    #screen {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      white-space: pre;
+      line-height: 1;
+      letter-spacing: 0;
+      user-select: none;
+      overflow: hidden;
+      padding: 0;
+      font-size: 14px;
+      background:
+        linear-gradient(to bottom, #0a1020 0%, #111827 40%, #0f0f0f 40%, #050505 100%);
+    }
+
+    #hud {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 10;
+      color: #d8f6ff;
+      background: rgba(0, 0, 0, 0.45);
+      border: 1px solid rgba(120, 220, 255, 0.25);
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.4;
+      backdrop-filter: blur(4px);
+      box-shadow: 0 0 18px rgba(0, 200, 255, 0.12);
+    }
+
+    #message {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      background: rgba(0, 0, 0, 0.72);
+      color: #fff;
+      text-align: center;
+      padding: 24px;
+    }
+
+    #message .box {
+      background: rgba(10, 15, 30, 0.88);
+      border: 1px solid rgba(120, 220, 255, 0.25);
+      border-radius: 16px;
+      padding: 28px;
+      max-width: 680px;
+      box-shadow: 0 0 30px rgba(0, 200, 255, 0.15);
+    }
+
+    #message h1 {
+      margin-top: 0;
+      color: #7cf2ff;
+      font-size: 2rem;
+    }
+
+    #message p {
+      color: #d8f6ff;
+      font-size: 1rem;
+    }
+
+    #crosshair {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 9;
+      color: rgba(255,255,255,0.55);
+      font-size: 20px;
+      pointer-events: none;
+      text-shadow: 0 0 8px rgba(255,255,255,0.2);
+    }
+
+    .hint {
+      color: #82ffaa;
+    }
+
+    .accent {
+      color: #ffd166;
+    }
+  </style>
 </head>
 <body>
-  <div class="calculator">
-    <div class="display" id="display">0</div>
+  <div id="game">
+    <pre id="screen"></pre>
+  </div>
 
-    <div class="buttons">
-      <button class="btn function" data-action="clear">C</button>
-      <button class="btn function" data-action="delete">⌫</button>
-      <button class="btn operator" data-value="%">%</button>
-      <button class="btn operator" data-value="/">÷</button>
+  <div id="crosshair">+</div>
 
-      <button class="btn number" data-value="7">7</button>
-      <button class="btn number" data-value="8">8</button>
-      <button class="btn number" data-value="9">9</button>
-      <button class="btn operator" data-value="*">×</button>
+  <div id="hud">
+    <div><strong>Labirinto 3D ASCII</strong></div>
+    <div>W/S = andar | A/D = girar | Shift = correr | R = reiniciar</div>
+    <div id="status">Encontre a saída <span class="accent">E</span></div>
+  </div>
 
-      <button class="btn number" data-value="4">4</button>
-      <button class="btn number" data-value="5">5</button>
-      <button class="btn number" data-value="6">6</button>
-      <button class="btn operator" data-value="-">−</button>
-
-      <button class="btn number" data-value="1">1</button>
-      <button class="btn number" data-value="2">2</button>
-      <button class="btn number" data-value="3">3</button>
-      <button class="btn operator" data-value="+">+</button>
-
-      <button class="btn number zero" data-value="0">0</button>
-      <button class="btn number" data-value=".">.</button>
-      <button class="btn equal" data-action="calculate">=</button>
+  <div id="message">
+    <div class="box">
+      <h1>Você escapou do labirinto!</h1>
+      <p>Pressione <span class="hint">R</span> para jogar novamente.</p>
     </div>
   </div>
 
-  <script src="script.js"></script>
+  <script>
+    const screen = document.getElementById("screen");
+    const statusText = document.getElementById("status");
+    const message = document.getElementById("message");
+
+    const map = [
+      "########################",
+      "#S     #       #      E#",
+      "# ### ### ##### # ######",
+      "#   #     #   # #      #",
+      "### ##### # # # ###### #",
+      "#   #   #   # #      # #",
+      "# ### # ##### ###### # #",
+      "# #   #     #      # # #",
+      "# # ####### ###### # # #",
+      "# #       #      # #   #",
+      "# ####### ###### # ### #",
+      "#       #      # #     #",
+      "####### ######## #######",
+      "#                    ###",
+      "########################"
+    ];
+
+    const MAP_W = map[0].length;
+    const MAP_H = map.length;
+
+    let player = {
+      x: 1.5,
+      y: 1.5,
+      angle: 0
+    };
+
+    // Encontrar spawn S
+    for (let y = 0; y < MAP_H; y++) {
+      for (let x = 0; x < MAP_W; x++) {
+        if (map[y][x] === "S") {
+          player.x = x + 0.5;
+          player.y = y + 0.5;
+        }
+      }
+    }
+
+    const keys = {};
+    let gameWon = false;
+    let lastTime = performance.now();
+
+    const FOV = Math.PI / 3;      // 60 graus
+    const MAX_DEPTH = 20;
+    const MOVE_SPEED = 2.8;
+    const RUN_MULT = 1.85;
+    const TURN_SPEED = 2.4;
+
+    const wallChars = ["█", "▓", "▒", "░", "#", "x", ".", "."];
+    const floorChars = [".", ",", "-", "~"];
+    const skyChars = [" ", "·", " "];
+
+    function isWall(x, y) {
+      if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) return true;
+      return map[Math.floor(y)][Math.floor(x)] === "#";
+    }
+
+    function getCell(x, y) {
+      if (x < 0 || y < 0 || x >= MAP_W || y >= MAP_H) return "#";
+      return map[Math.floor(y)][Math.floor(x)];
+    }
+
+    function resetGame() {
+      for (let y = 0; y < MAP_H; y++) {
+        for (let x = 0; x < MAP_W; x++) {
+          if (map[y][x] === "S") {
+            player.x = x + 0.5;
+            player.y = y + 0.5;
+            player.angle = 0;
+          }
+        }
+      }
+      gameWon = false;
+      message.style.display = "none";
+      statusText.innerHTML = 'Encontre a saída <span class="accent">E</span>';
+    }
+
+    function castRay(rayAngle) {
+      const stepSize = 0.02;
+      let distance = 0;
+      let hit = false;
+      let hitType = "#";
+      let edgeShade = 1;
+
+      const eyeX = Math.cos(rayAngle);
+      const eyeY = Math.sin(rayAngle);
+
+      while (!hit && distance < MAX_DEPTH) {
+        distance += stepSize;
+        const testX = player.x + eyeX * distance;
+        const testY = player.y + eyeY * distance;
+
+        const cell = getCell(testX, testY);
+        if (cell === "#" || cell === "E") {
+          hit = true;
+          hitType = cell;
+
+          // Detecção simples de “borda”
+          const blockMidX = Math.floor(testX) + 0.5;
+          const blockMidY = Math.floor(testY) + 0.5;
+          const angleToBlock = Math.atan2(testY - blockMidY, testX - blockMidX);
+          const cornerFactor = Math.min(
+            Math.abs(Math.cos(angleToBlock)),
+            Math.abs(Math.sin(angleToBlock))
+          );
+          edgeShade = cornerFactor < 0.18 ? 0.7 : 1;
+        }
+      }
+
+      return { distance, hitType, edgeShade };
+    }
+
+    function colorize(text, color) {
+      return `<span style="color:${color}">${text}</span>`;
+    }
+
+    function render() {
+      const width = Math.max(80, Math.floor(window.innerWidth / 9));
+      const height = Math.max(32, Math.floor(window.innerHeight / 16));
+
+      let output = "";
+
+      for (let y = 0; y < height; y++) {
+        let row = "";
+
+        for (let x = 0; x < width; x++) {
+          const rayAngle = (player.angle - FOV / 2) + (x / width) * FOV;
+          const ray = castRay(rayAngle);
+
+          let dist = ray.distance * Math.cos(rayAngle - player.angle);
+          if (dist < 0.0001) dist = 0.0001;
+
+          const wallHeight = Math.floor(height / dist);
+          const ceiling = Math.floor((height / 2) - wallHeight / 2);
+          const floor = Math.floor((height / 2) + wallHeight / 2);
+
+          if (y < ceiling) {
+            const skyDepth = y / Math.max(1, ceiling);
+            const char = skyChars[Math.min(skyChars.length - 1, Math.floor(skyDepth * skyChars.length))];
+            row += colorize(char, "#6fb7ff");
+          } else if (y > floor) {
+            const b = 1 - ((y - height / 2) / (height / 2));
+            let floorChar = " ";
+            let floorColor = "#111";
+
+            if (b < 0.15) {
+              floorChar = " ";
+              floorColor = "#050505";
+            } else if (b < 0.3) {
+              floorChar = floorChars[3];
+              floorColor = "#1f2b1f";
+            } else if (b < 0.5) {
+              floorChar = floorChars[2];
+              floorColor = "#2f3d2f";
+            } else if (b < 0.7) {
+              floorChar = floorChars[1];
+              floorColor = "#455545";
+            } else {
+              floorChar = floorChars[0];
+              floorColor = "#708070";
+            }
+
+            row += colorize(floorChar, floorColor);
+          } else {
+            const depthRatio = ray.distance / MAX_DEPTH;
+            let idx = Math.min(wallChars.length - 1, Math.floor(depthRatio * wallChars.length));
+            let char = wallChars[idx];
+
+            let color;
+            if (ray.hitType === "E") {
+              color = depthRatio < 0.4 ? "#7CFFB2" : depthRatio < 0.7 ? "#52d98c" : "#2f8f5a";
+              char = depthRatio < 0.45 ? "@" : char;
+            } else {
+              if (depthRatio < 0.15) color = "#b8f1ff";
+              else if (depthRatio < 0.3) color = "#86dfff";
+              else if (depthRatio < 0.45) color = "#57b8ff";
+              else if (depthRatio < 0.65) color = "#347ed1";
+              else if (depthRatio < 0.85) color = "#24508c";
+              else color = "#172a45";
+            }
+
+            if (ray.edgeShade < 1) {
+              color = ray.hitType === "E" ? "#b8ffd2" : "#d9f7ff";
+              char = "│";
+            }
+
+            row += colorize(char, color);
+          }
+        }
+
+        output += row + "\n";
+      }
+
+      // Mini mapa
+      output += "\n";
+      output += `<span style="color:#7cf2ff">MAPA</span>\n`;
+      for (let y = 0; y < MAP_H; y++) {
+        let line = "";
+        for (let x = 0; x < MAP_W; x++) {
+          const px = Math.floor(player.x);
+          const py = Math.floor(player.y);
+
+          if (x === px && y === py) {
+            line += `<span style="color:#ffd166">P</span>`;
+          } else {
+            const cell = map[y][x];
+            if (cell === "#") line += `<span style="color:#3f6fa0">#</span>`;
+            else if (cell === "E") line += `<span style="color:#7cffb0">E</span>`;
+            else if (cell === "S") line += `<span style="color:#cda6ff">S</span>`;
+            else line += `<span style="color:#7a8a9a">.</span>`;
+          }
+        }
+        output += line + "\n";
+      }
+
+      screen.innerHTML = output;
+    }
+
+    function tryMove(nx, ny) {
+      const radius = 0.18;
+      if (
+        !isWall(nx - radius, ny - radius) &&
+        !isWall(nx + radius, ny - radius) &&
+        !isWall(nx - radius, ny + radius) &&
+        !isWall(nx + radius, ny + radius)
+      ) {
+        player.x = nx;
+        player.y = ny;
+      }
+    }
+
+    function update(dt) {
+      if (gameWon) return;
+
+      const moveSpeed = (keys["Shift"] ? MOVE_SPEED * RUN_MULT : MOVE_SPEED) * dt;
+      const turnSpeed = TURN_SPEED * dt;
+
+      if (keys["a"]) player.angle -= turnSpeed;
+      if (keys["d"]) player.angle += turnSpeed;
+
+      const dirX = Math.cos(player.angle);
+      const dirY = Math.sin(player.angle);
+
+      if (keys["w"]) {
+        tryMove(player.x + dirX * moveSpeed, player.y + dirY * moveSpeed);
+      }
+
+      if (keys["s"]) {
+        tryMove(player.x - dirX * moveSpeed, player.y - dirY * moveSpeed);
+      }
+
+      if (getCell(player.x, player.y) === "E") {
+        gameWon = true;
+        message.style.display = "flex";
+        statusText.innerHTML = '<span class="hint">Saída encontrada!</span>';
+      }
+    }
+
+    function loop(now) {
+      const dt = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      update(dt);
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    window.addEventListener("keydown", (e) => {
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      keys[key] = true;
+
+      if (key === "r") {
+        resetGame();
+      }
+
+      if (["w", "a", "s", "d", "Shift", "r"].includes(key)) {
+        e.preventDefault();
+      }
+    });
+
+    window.addEventListener("keyup", (e) => {
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      keys[key] = false;
+    });
+
+    window.addEventListener("resize", render);
+
+    resetGame();
+    render();
+    requestAnimationFrame(loop);
+  </script>
 </body>
 </html>
