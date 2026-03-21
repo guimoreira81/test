@@ -34,6 +34,7 @@
       inset: 0;
       overflow: hidden;
       pointer-events: none;
+      z-index: 1;
     }
 
     .poly {
@@ -49,15 +50,16 @@
       position: fixed;
       left: 16px;
       top: 16px;
-      z-index: 50;
+      z-index: 1000;
       color: white;
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(0, 0, 0, 0.38);
+      border: 1px solid rgba(255, 255, 255, 0.18);
       padding: 12px 14px;
       border-radius: 12px;
       backdrop-filter: blur(6px);
       line-height: 1.5;
       font-size: 14px;
+      pointer-events: auto;
     }
 
     #centerDot {
@@ -71,14 +73,14 @@
       border-radius: 50%;
       background: rgba(255,255,255,0.95);
       box-shadow: 0 0 10px rgba(255,255,255,0.7);
-      z-index: 40;
+      z-index: 900;
       pointer-events: none;
     }
 
     #overlay {
       position: fixed;
       inset: 0;
-      z-index: 60;
+      z-index: 1100;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -86,13 +88,14 @@
       color: white;
       text-align: center;
       padding: 24px;
+      pointer-events: auto;
     }
 
     #overlay .box {
       max-width: 720px;
       padding: 28px;
       border-radius: 18px;
-      background: rgba(0, 0, 0, 0.45);
+      background: rgba(0, 0, 0, 0.5);
       border: 1px solid rgba(255,255,255,0.15);
       backdrop-filter: blur(10px);
       box-shadow: 0 18px 50px rgba(0,0,0,0.35);
@@ -118,6 +121,8 @@
       font-weight: bold;
       cursor: pointer;
       font-size: 1rem;
+      position: relative;
+      z-index: 1200;
     }
 
     #overlay button:hover {
@@ -144,7 +149,7 @@
         <h1>Exploração 3D com DIVs</h1>
         <p>Clique para capturar o mouse e começar.</p>
         <p>Use <strong>W, A, S, D</strong> para andar, <strong>Space</strong> para pular e o <strong>mouse</strong> para mover a câmera.</p>
-        <p>O mundo é gerado proceduralmente e continua em todas as direções.</p>
+        <p>O mundo é procedural e se estende em todas as direções.</p>
         <button id="startBtn">Entrar no Mundo</button>
       </div>
     </div>
@@ -172,7 +177,7 @@
       z: 0,
       vy: 0,
       yaw: 0,
-      pitch: -0.15,
+      pitch: -0.18,
       onGround: false
     };
 
@@ -181,10 +186,10 @@
       jumpForce: 9,
       moveSpeed: 10,
       mouseSensitivity: 0.0022,
-      fov: 900,
-      renderRadius: 12,
+      fov: 980,
+      renderRadius: 18,
       tileSize: 2,
-      maxPitch: 1.25
+      maxPitch: 1.2
     };
 
     function clamp(v, min, max) {
@@ -276,27 +281,32 @@
     }
 
     function projectPoint(wx, wy, wz) {
-      let x = wx - player.x;
-      let y = wy - player.y;
-      let z = wz - player.z;
+      const dx = wx - player.x;
+      const dy = wy - player.y;
+      const dz = wz - player.z;
 
-      const cosYaw = Math.cos(-player.yaw);
-      const sinYaw = Math.sin(-player.yaw);
-      const x1 = x * cosYaw - z * sinYaw;
-      const z1 = x * sinYaw + z * cosYaw;
+      const forwardX = Math.cos(player.yaw);
+      const forwardZ = Math.sin(player.yaw);
+      const rightX = -Math.sin(player.yaw);
+      const rightZ = Math.cos(player.yaw);
+
+      const camX = dx * rightX + dz * rightZ;
+      const camZ = dx * forwardX + dz * forwardZ;
+      const camY = dy;
 
       const cosPitch = Math.cos(-player.pitch);
       const sinPitch = Math.sin(-player.pitch);
-      const y2 = y * cosPitch - z1 * sinPitch;
-      const z2 = y * sinPitch + z1 * cosPitch;
 
-      if (z2 <= 0.1) return null;
+      const rotY = camY * cosPitch - camZ * sinPitch;
+      const rotZ = camY * sinPitch + camZ * cosPitch;
 
-      const scale = settings.fov / z2;
-      const sx = CX() + x1 * scale;
-      const sy = CY() - y2 * scale;
+      if (rotZ <= 0.1) return null;
 
-      return { x: sx, y: sy, z: z2, scale };
+      const scale = settings.fov / rotZ;
+      const sx = CX() + camX * scale;
+      const sy = CY() - rotY * scale;
+
+      return { x: sx, y: sy, z: rotZ, scale };
     }
 
     function drawTriangle(el, p1, p2, p3, color, zIndex, opacity = 1) {
@@ -333,6 +343,42 @@
 
     function triangleArea2(a, b, c) {
       return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+    }
+
+    function addTriangle(list, p1, p2, p3, color, depthBias = 0) {
+      if (!p1 || !p2 || !p3) return;
+      if (triangleArea2(p1, p2, p3) >= 0) return;
+
+      const depth = (p1.z + p2.z + p3.z) / 3 + depthBias;
+      list.push({ p1, p2, p3, color, depth });
+    }
+
+    function addBillboardTree(list, x, y, z, distSq, seed) {
+      const rightX = -Math.sin(player.yaw);
+      const rightZ = Math.cos(player.yaw);
+
+      const trunkW = 0.22;
+      const trunkH = 2.3 + seed * 1.6;
+      const crownW = 1.2 + seed * 0.6;
+      const crownH = trunkH + 2.4 + seed * 2.0;
+
+      // Tronco sempre virado para a câmera
+      const tb1 = projectPoint(x - rightX * trunkW, y, z - rightZ * trunkW);
+      const tb2 = projectPoint(x + rightX * trunkW, y, z + rightZ * trunkW);
+      const tt1 = projectPoint(x - rightX * trunkW, y + trunkH, z - rightZ * trunkW);
+      const tt2 = projectPoint(x + rightX * trunkW, y + trunkH, z + rightZ * trunkW);
+
+      addTriangle(list, tb1, tb2, tt2, "rgb(98, 64, 36)", -distSq * 0.0001);
+      addTriangle(list, tb1, tt2, tt1, "rgb(118, 76, 42)", -distSq * 0.0001);
+
+      // Copa em billboard
+      const cb1 = projectPoint(x - rightX * crownW, y + trunkH - 0.2, z - rightZ * crownW);
+      const cb2 = projectPoint(x + rightX * crownW, y + trunkH - 0.2, z + rightZ * crownW);
+      const ct1 = projectPoint(x - rightX * crownW * 0.22, y + crownH, z - rightZ * crownW * 0.22);
+      const ct2 = projectPoint(x + rightX * crownW * 0.22, y + crownH, z + rightZ * crownW * 0.22);
+
+      addTriangle(list, cb1, cb2, ct2, "rgb(52, 128, 61)", -distSq * 0.00015);
+      addTriangle(list, cb1, ct2, ct1, "rgb(68, 156, 74)", -distSq * 0.00015);
     }
 
     function render() {
@@ -376,69 +422,23 @@
           const slope1 = ((y10 - y00) + (y11 - y00)) * 0.5;
           const slope2 = ((y11 - y01) + (y11 - y10)) * 0.5;
 
-          const color1 = shadeColor(baseColor, 18 - slope1 * 10);
-          const color2 = shadeColor(baseColor, 8 - slope2 * 10);
+          const fog = clamp(distSq / ((radius * tile) ** 2), 0, 1);
+          const fogAmt1 = -fog * 90;
+          const fogAmt2 = -fog * 100;
 
-          if (p00 && p10 && p11) {
-            if (triangleArea2(p00, p10, p11) < 0) {
-              tris.push({
-                p1: p00,
-                p2: p10,
-                p3: p11,
-                color: color1,
-                depth: distSq + (p00.z + p10.z + p11.z)
-              });
-            }
-          }
+          const color1 = shadeColor(baseColor, 18 - slope1 * 10 + fogAmt1);
+          const color2 = shadeColor(baseColor, 8 - slope2 * 10 + fogAmt2);
 
-          if (p00 && p11 && p01) {
-            if (triangleArea2(p00, p11, p01) < 0) {
-              tris.push({
-                p1: p00,
-                p2: p11,
-                p3: p01,
-                color: color2,
-                depth: distSq + (p00.z + p11.z + p01.z)
-              });
-            }
-          }
+          addTriangle(tris, p00, p10, p11, color1);
+          addTriangle(tris, p00, p11, p01, color2);
 
-          // Árvores procedurais simples
+          // Árvores procedurais em billboard
           const seed = hash2(gx * 17, gz * 31);
-          if (seed > 0.82 && distSq < (radius * tile * 0.88) ** 2) {
-            const tx = centerX + (hash2(gx * 19, gz * 23) - 0.5) * 0.7;
-            const tz = centerZ + (hash2(gx * 13, gz * 29) - 0.5) * 0.7;
-            const th = getHeight(tx, tz);
-
-            const trunkH = 2.2 + hash2(gx * 5, gz * 7) * 1.4;
-            const crownH = trunkH + 2.8 + hash2(gx * 3, gz * 11) * 1.8;
-
-            const trunkW = 0.28;
-            const crownW = 1.35;
-
-            const t1 = projectPoint(tx - trunkW, th, tz);
-            const t2 = projectPoint(tx + trunkW, th, tz);
-            const t3 = projectPoint(tx + trunkW, th + trunkH, tz);
-            const t4 = projectPoint(tx - trunkW, th + trunkH, tz);
-
-            const c1 = projectPoint(tx - crownW, th + trunkH - 0.2, tz);
-            const c2 = projectPoint(tx + crownW, th + trunkH - 0.2, tz);
-            const c3 = projectPoint(tx + crownW * 0.2, th + crownH, tz);
-            const c4 = projectPoint(tx - crownW * 0.2, th + crownH, tz);
-
-            if (t1 && t2 && t3) {
-              tris.push({ p1: t1, p2: t2, p3: t3, color: "rgb(95, 62, 36)", depth: distSq - 1 });
-            }
-            if (t1 && t3 && t4) {
-              tris.push({ p1: t1, p2: t3, p3: t4, color: "rgb(110, 72, 42)", depth: distSq - 1 });
-            }
-
-            if (c1 && c2 && c3) {
-              tris.push({ p1: c1, p2: c2, p3: c3, color: "rgb(49, 118, 54)", depth: distSq - 2 });
-            }
-            if (c1 && c3 && c4) {
-              tris.push({ p1: c1, p2: c3, p3: c4, color: "rgb(60, 140, 67)", depth: distSq - 2 });
-            }
+          if (seed > 0.82 && distSq < (radius * tile * 0.92) ** 2) {
+            const tx = centerX + (hash2(gx * 19, gz * 23) - 0.5) * 0.8;
+            const tz = centerZ + (hash2(gx * 13, gz * 29) - 0.5) * 0.8;
+            const ty = getHeight(tx, tz);
+            addBillboardTree(tris, tx, ty, tz, distSq, seed);
           }
         }
       }
@@ -462,7 +462,7 @@
           tri.p2,
           tri.p3,
           tri.color,
-          1000 - i,
+          100 + (tris.length - i),
           1
         );
       }
@@ -473,10 +473,10 @@
     }
 
     function update(dt) {
-      const forwardX = Math.sin(player.yaw);
-      const forwardZ = Math.cos(player.yaw);
-      const rightX = Math.sin(player.yaw + Math.PI / 2);
-      const rightZ = Math.cos(player.yaw + Math.PI / 2);
+      const forwardX = Math.cos(player.yaw);
+      const forwardZ = Math.sin(player.yaw);
+      const rightX = -Math.sin(player.yaw);
+      const rightZ = Math.cos(player.yaw);
 
       let moveX = 0;
       let moveZ = 0;
@@ -525,7 +525,7 @@
       const key = e.key.toLowerCase();
       keys[key] = true;
 
-      if (key === " " || e.code === "Space") {
+      if (e.code === "Space") {
         if (player.onGround) {
           player.vy = settings.jumpForce;
           player.onGround = false;
@@ -551,6 +551,7 @@
     }
 
     startBtn.addEventListener("click", lockPointer);
+
     game.addEventListener("click", () => {
       if (document.pointerLockElement !== game) {
         lockPointer();
