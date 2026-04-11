@@ -45,18 +45,25 @@ class Vector2{
 
 let screenSize = new Vector2(process.stdout.columns, process.stdout.rows);
 
+
 let screen = {
-    size: new Vector2(process.stdout.columns, process.stdout.rows),
+    setSize: () => {
+        const {columns, rows} = process.stdout;
+        const size = new Vector2(columns, rows);
+        screen.size = size;
+        return size;
+    },
+    size: screen.setSize(),
     screenCharacteres: [],
     fill: (char="x") => {
         screen.screenCharacteres = [];
-        for (let i = 0; i<screenSize.x*screenSize.y; i++){
+        for (let i = 0; i<screen.size.x*screen.size.y; i++){
             screen.screenCharacteres.push(char);
         }
     },
     drawPixel: (char, position) => {
         position = new Vector2(Math.abs(position.x), Math.abs(position.y));
-        let index = position.y*screenSize.x+position.x;
+        let index = position.y*screen.size.x+position.x;
         screen.screenCharacteres[index] = char;
     },
     refresh(){
@@ -72,8 +79,7 @@ let screen = {
 };
 
 process.stdout.on('resize', () => {
-    const {columns, rows} = process.stdout;
-    screenSize = new Vector2(columns, rows);
+    screen.setSize();
 });
 
 
@@ -85,9 +91,9 @@ const game = {
     _loop: () => {
         game.updateFrame(1/game.FPS);
         for (const object of game.world){
-            screen.drawPixel("O", object.position);
+            screen.drawPixel(object.char, object.position);
         }
-        screen.fill(" ");
+        screen.fill("#");
         game.drawFrame();
         screen.refresh();
     },
@@ -98,18 +104,19 @@ const game = {
 game.start();
 
 class GameObject{
-    constructor(name, size, position){
+    constructor(name, size, position, char="A"){
         this.name = name;
         this.size = size;
+        this.char = char;
         this.position = position;
         game.world.push(this);
     }
 }
 
-let particle = new GameObject("aa", new Vector2(1, 1), new Vector2(0, 0));
+let particle = new GameObject("test", new Vector2(1, 1), new Vector2(0, 0));
 
-for (let i = 0; i<10; i++){
-    let particle = new GameObject(i, new Vector2(1, 1), new Vector2(Math.random()*10, Math.random()*10));
+for (let i = 0; i<100; i++){
+    let particle = new GameObject(i, new Vector2(1, 1), new Vector2(Math.random()*20, Math.random()*20));
 }
 
 game.updateFrame = (dt) => {
@@ -117,5 +124,5 @@ game.updateFrame = (dt) => {
 }
 
 game.drawFrame = () => {
-
+    screen.drawPixel("O", new Vector2(0, 0));
 }
